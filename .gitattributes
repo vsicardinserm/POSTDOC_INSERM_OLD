@@ -1,0 +1,4 @@
+DATA/cattle_data/movements.csv filter=lfs diff=lfs merge=lfs -text
+DATA/cleaned[[:space:]]cattle[[:space:]]trade[[:space:]]data[[:space:]]2006-2012.zip filter=lfs diff=lfs merge=lfs -text
+TEMPORAL_NETWORK/clion/cmake-build-debug/
+ filter=lfs diff=lfs merge=lfs -text
