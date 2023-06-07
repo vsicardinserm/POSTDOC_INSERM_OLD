@@ -6,19 +6,16 @@
 #include <boost/graph/graph_utility.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/graph/graphviz.hpp>
+#include "EdgeAttributes.h"
+#include "VertexAttributes.h"
+#include "serialize_graph.h"
+//#include <boost/archive/text_oarchive.hpp>
+//#include <boost/archive/text_iarchive.hpp>
 #include <unordered_map>
 #include <map>
 #include <random>
 #include "progressbar.hpp"
 #include <chrono>
-
-
-class AttributeException : public std::exception {
-public:
-    [[nodiscard]] const char* what() const noexcept override {
-        return "Attribute vertex error";
-    }
-};
 
 std::string convertToString(const std::string& attribute) {
     return attribute;
@@ -26,74 +23,6 @@ std::string convertToString(const std::string& attribute) {
 std::string convertToString(int attribute) {
     return std::to_string(attribute);
 }
-
-struct VertexAttributes {
-    std::unordered_map<std::string, std::string> attributes;
-    int ID;
-
-    VertexAttributes() = default;
-    explicit VertexAttributes(unsigned id) : ID(id) {}
-
-    void addAttributes(const std::string& name, const std::string& value) {
-        attributes[name] = value;
-    }
-
-    std::string getAttribute(const std::string& name) const {
-        try {
-            return attributes.at(name);
-        } catch (const std::out_of_range& e) {
-            std::cout << "\tERROR:" << e.what() << std::endl;
-            throw AttributeException();
-        }
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const VertexAttributes& obj) {
-        std::string result;
-        for (const auto& pair : obj.attributes) {
-            result += pair.first + ": " + pair.second + ", ";
-        }
-        if (!result.empty()) {
-            // Remove the trailing comma and space
-            result.erase(result.end() - 2, result.end());
-        }
-        os << "VertexAttributes:\n\t" << result;
-
-        return os;
-    }
-};
-
-struct EdgeAttributes {
-    std::unordered_map<std::string, std::string> attributes;
-
-    EdgeAttributes() = default;
-
-    void addAttribute(const std::string& name, const std::string& value) {
-        attributes[name] = value;
-    }
-
-    std::string getAttribute(const std::string& name) {
-        try {
-            return attributes.at(name);
-        } catch (const std::out_of_range& e) {
-            std::cout << "\tERROR:" << e.what() << std::endl;
-            throw AttributeException();
-        }
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const EdgeAttributes& obj) {
-        std::string result;
-        for (const auto& pair : obj.attributes) {
-            result += pair.first + ": " + pair.second + ", ";
-        }
-        if (!result.empty()) {
-            // Remove the trailing comma and space
-            result.erase(result.end() - 2, result.end());
-        }
-        os << "EdgeAttributes:\n\t" << result;
-
-        return os;
-    }
-};
 
 typedef boost::adjacency_list<boost::listS, boost::vecS, boost::directedS, VertexAttributes, EdgeAttributes> Graph;
 typedef boost::graph_traits<Graph>::vertex_descriptor Vertex;
@@ -114,21 +43,6 @@ int main() {
 
 )" << std::endl;
     std::cout << "\t\033[0m" << std::endl;
-
-    char response;
-    do {
-        std::cout << "\tLaunch? (O/N): ";
-        std::cin >> response;
-        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); // Ignorer les caractères supplémentaires dans le tampon d'entrée
-
-        if (response == 'O' || response == 'o') {
-            std::cout << "\tContinuation...\n" << std::endl;
-            break;
-        } else if (response == 'N' || response == 'n') {
-            std::cout << "\t\033[1;31mENDED\033[0m" << std::endl;
-            return 1;
-        }
-    } while (true);
 
     std::string path_attributes = "/home/vsicard/Documents/POSTDOC_INSERM/DATA/cattle_data/attributes.csv";
     std::string path_movements = "/home/vsicard/Documents/POSTDOC_INSERM/DATA/cattle_data/movements.csv";
@@ -204,7 +118,7 @@ int main() {
         attr.addAttributes("state", "S");
 
         Vertex v = boost::add_vertex(VertexAttributes(attr), G);
-        idToVertex[std::stoul(attr.attributes.at("ID"))] = v;
+        idToVertex[std::stoul(attr.getAttribute("ID"))] = v;
     }
     // print outputs
     std::cout << "\n\t\t\tNumber of nodes: " << boost::num_vertices(G) << std::endl;
@@ -273,8 +187,8 @@ int main() {
                 local_attr.addAttribute(pair.first, convertToString(local_movements_tokens[pair.second]));
             }
 
-            local_v1 = idToVertex.at(std::stoul(local_attr.attributes.at("i")));
-            local_v2 = idToVertex.at(std::stoul(local_attr.attributes.at("j")));
+            local_v1 = idToVertex.at(std::stoul(local_attr.getAttribute("i")));
+            local_v2 = idToVertex.at(std::stoul(local_attr.getAttribute("j")));
 
             // Section critique pour éviter les conflits lors de l'ajout d'arêtes au graphe
             #pragma omp critical (graph_update)
@@ -285,7 +199,7 @@ int main() {
         }
     }
 
-    std::cout << "\t\n\t\tNumber of edges: " << boost::num_edges(G) << std::endl;
+    std::cout << "\n\t\t\tNumber of edges: " << boost::num_edges(G) << std::endl;
     auto endMovements = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> durationMovements = endMovements-startMovements;
     std::cout << "\t\t\tExecution time: " << durationMovements.count() << "s" << std::endl;
@@ -297,13 +211,14 @@ int main() {
     // Randomly select a node
     std::random_device rd;
     std::mt19937 rng(rd());
-    std::uniform_int_distribution<> dist(0, boost::num_vertices(G) - 1);
-    boost::graph_traits<Graph>::vertex_descriptor randomVertex = boost::vertex(dist(rng), G);
+    int nb_I = 2;
+    for (int ii = 0; ii < nb_I;++ii) {
+        std::uniform_int_distribution<> dist(0, boost::num_vertices(G) - 1);
+        boost::graph_traits<Graph>::vertex_descriptor randomVertex = boost::vertex(dist(rng), G);
 
-    VertexAttributes* randomVertexAttributes = &G[randomVertex];
-//    std::cout << "\tState: " << randomVertexAttributes->getAttribute("state") << std::endl;
-    randomVertexAttributes->addAttributes("state", "I");
-//    std::cout << "\tState: " << randomVertexAttributes->getAttribute("state") << std::endl;
+        VertexAttributes *randomVertexAttributes = &G[randomVertex];
+        randomVertexAttributes->addAttributes("state", "I");
+    }
 
     // SIR
     int max_time = 2556;
