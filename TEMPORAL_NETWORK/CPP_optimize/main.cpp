@@ -158,6 +158,7 @@ int main() {
     {
         std::string movements_line;
         int local_cptMvt = 0;
+        int cptWeek = 0;
         std::vector<std::string> local_movements_tokens;
         EdgeAttributes local_attr;
         Vertex local_v1, local_v2;
@@ -190,6 +191,13 @@ int main() {
             local_v1 = idToVertex.at(std::stoul(local_attr.getAttribute("i")));
             local_v2 = idToVertex.at(std::stoul(local_attr.getAttribute("j")));
 
+            // grouping per week
+            #pragma omp critical (week_grouping)
+            if(std::stoul(local_attr.getAttribute("t")) % 7 == 0) {
+                cptWeek +=1;
+            }
+            local_attr.addAttribute("w", convertToString(cptWeek));
+
             // Section critique pour éviter les conflits lors de l'ajout d'arêtes au graphe
             #pragma omp critical (graph_update)
             {
@@ -211,7 +219,7 @@ int main() {
     // Randomly select a node
     std::random_device rd;
     std::mt19937 rng(rd());
-    int nb_I = 2;
+    int nb_I = 3;
     for (int ii = 0; ii < nb_I;++ii) {
         std::uniform_int_distribution<> dist(0, boost::num_vertices(G) - 1);
         boost::graph_traits<Graph>::vertex_descriptor randomVertex = boost::vertex(dist(rng), G);
@@ -280,6 +288,9 @@ int main() {
             if(nodeAttributes->getAttribute("state") == "S") {
                 #pragma omp critical
                 S.push_back(node);
+            } else if(nodeAttributes->getAttribute("state") == "R") {
+                #pragma omp critical
+                R.push_back(node);
             }
         }
 
